@@ -1,0 +1,9 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: forgerl-world-deny-all
+spec:
+  podSelector:
+    matchLabels:
+      app: forgerl-world
+  policyTypes: [Ingress, Egress]
