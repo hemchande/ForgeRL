@@ -1,5 +1,8 @@
 name: Real model harness benchmark
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/real-model.yml']
   workflow_dispatch:
     inputs:
       model:
@@ -26,10 +29,10 @@ jobs:
     timeout-minutes: 120
     env:
       MODEL_URL: http://127.0.0.1:11434/v1/chat/completions
-      MODEL: ${{ inputs.model }}
-      TASKS: ${{ inputs.tasks_per_split }}
-      SAMPLES: ${{ inputs.samples }}
-      USE_META: ${{ inputs.use_meta_model }}
+      MODEL: ${{ inputs.model || 'qwen2.5-coder:1.5b' }}
+      TASKS: ${{ inputs.tasks_per_split || '1' }}
+      SAMPLES: ${{ inputs.samples || '1' }}
+      USE_META: ${{ github.event_name == 'workflow_dispatch' && inputs.use_meta_model }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
