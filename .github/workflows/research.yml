@@ -1,0 +1,31 @@
+name: Cross-model harness research
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      MODEL_URL: http://127.0.0.1:11434/v1/chat/completions
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: docker build -f Dockerfile.world -t forgerl-world:local .
+      - run: |
+          docker run -d --name ollama -p 127.0.0.1:11434:11434 ollama/ollama:0.6.8
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:11434/api/tags && break; sleep 2; done
+          docker exec ollama ollama pull qwen2.5-coder:1.5b
+          docker exec ollama ollama pull llama3.2:1b
+          curl -fsS http://127.0.0.1:11434/api/tags > model-manifest.json
+      - run: python -m forgerl.research --models qwen2.5-coder:1.5b llama3.2:1b --meta-model qwen2.5-coder:1.5b --samples 1 --workers 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: research-results
+          path: |
+            research-run/
+            model-manifest.json
