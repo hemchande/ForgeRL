@@ -1,0 +1,57 @@
+name: Docker end-to-end smoke test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run unit and HTTP inference tests
+        run: python -m unittest discover -s tests -v
+      - name: Build sandbox image
+        run: docker build -f Dockerfile.world -t forgerl-world:local .
+      - name: Start mock inference server
+        run: |
+          nohup python -m forgerl.mock_inference --port 8000 > /tmp/forgerl-mock.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/forgerl-mock.log
+          exit 1
+      - name: Verify real Docker sandbox
+        env:
+          FORGERL_DOCKER_INTEGRATION: "1"
+        run: python -m unittest discover -s tests -v
+      - name: Run multiprocessing rollout end-to-end
+        run: |
+          python -m forgerl.runtime --model mock --workers 3 --samples 2 \
+            --model-url http://127.0.0.1:8000/v1/chat/completions \
+            --output integration-rollouts.jsonl
+          python - <<'PY'
+          import json
+          rows=[json.loads(x) for x in open('integration-rollouts.jsonl')]
+          print(json.dumps([{'task':r['task_id'],'worker':r['worker_id'],'reward':r.get('reward'),'error':r.get('error')} for r in rows],indent=2))
+          assert len(rows)==6, rows
+          assert all(r.get('reward')==1 for r in rows), rows
+          assert all(len(r.get('trace',[]))>=3 for r in rows), rows
+          assert all(r.get('backend')=='docker' for r in rows), rows
+          assert len({r['episode_id'] for r in rows})==6
+          PY
+      - name: Upload trajectories and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgerl-e2e-artifacts
+          path: |
+            integration-rollouts.jsonl
+            /tmp/forgerl-mock.log
+          if-no-files-found: ignore
