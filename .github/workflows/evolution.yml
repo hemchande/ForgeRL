@@ -1,0 +1,21 @@
+name: Harness evolution fixture experiment
+on: [push, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  experiment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -v
+      - run: python -m forgerl.evolution --samples 2 --output experiment.sqlite > report.json
+      - run: python -c "import json; r=json.load(open('report.json')); assert r['episodes']==240 and r['eligible_for_review']"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harness-experiment
+          path: |
+            experiment.sqlite
+            report.json

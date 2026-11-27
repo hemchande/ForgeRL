@@ -1,0 +1,9 @@
+# Harness evolution experiment
+
+Run from repository root: `python -m forgerl.evolution --samples 2 --output experiment.sqlite`.
+
+240 episodes: 30 discovery tasks and 30 held-out tasks, two samples per task, baseline and candidate. Fixture mode intentionally simulates constraint loss, redundant reads and unnecessary diagnostics. It does not execute generated code or measure model capability. SQLite preserves raw events, contexts, evaluations and experiment reports. Use a new database per run for clean analysis.
+
+For real model execution, build Dockerfile.world as forgerl-world:local, set MODEL_URL to an OpenAI-compatible chat completions endpoint and run `python -m forgerl.evolution --model YOUR_MODEL --meta-model YOUR_META_MODEL --output real.sqlite`. Optional MODEL_API_KEY. The meta-model proposes allowlisted boolean harness configuration changes, not arbitrary source patches. The task model is held fixed by identifier; pin the actual served checkpoint externally. Fresh sandboxes are provisioned per episode and verifier. No automatic deployment.
+
+Metrics: functional correctness (one test per task), exact function signature, heuristic action appropriateness, wall time, tool operations and provider-reported token usage. Fixture latency is not meaningful for production. No actual user sentiment, scalability load tests, monetary cost, statistical significance or adversarial verifier guarantees. Held-out families are disjoint but small and synthetic. The reference proposer sees discovery evaluations only. Real-model runs are not validated by fixture CI. The promotion flag is a preliminary review gate, not statistical evidence or authorization to deploy. The current experiment uses async workers, not the separate multiprocessing runtime. Raw logs may contain sensitive data in future real-user extensions; do not upload such logs publicly.
