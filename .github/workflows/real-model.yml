@@ -1,0 +1,59 @@
+name: Real model harness benchmark
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Ollama model tag
+        default: qwen2.5-coder:1.5b
+        type: string
+      tasks_per_split:
+        description: Number of tasks per split (30 for full benchmark)
+        default: '3'
+        type: string
+      samples:
+        description: Samples per task
+        default: '1'
+        type: string
+      use_meta_model:
+        description: Generate candidate with the model rather than reference source
+        default: true
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MODEL_URL: http://127.0.0.1:11434/v1/chat/completions
+      MODEL: ${{ inputs.model }}
+      TASKS: ${{ inputs.tasks_per_split }}
+      SAMPLES: ${{ inputs.samples }}
+      USE_META: ${{ inputs.use_meta_model }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: docker build -f Dockerfile.world -t forgerl-world:local .
+      - name: Start CPU inference
+        run: |
+          docker run -d --name ollama -p 127.0.0.1:11434:11434 ollama/ollama:0.6.8
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:11434/api/tags; then break; fi
+            sleep 2
+          done
+          docker exec ollama ollama pull "$MODEL"
+          curl -fsS http://127.0.0.1:11434/api/tags > model-manifest.json
+      - name: Run real inference benchmark
+        run: |
+          args=()
+          if [ "$USE_META" = true ]; then args+=(--meta-model "$MODEL"); fi
+          python -m forgerl.source_experiment --model "$MODEL" "${args[@]}" --tasks-per-split "$TASKS" --samples "$SAMPLES" --workers 1 --output real-run
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-model-results
+          path: |
+            real-run/
+            model-manifest.json

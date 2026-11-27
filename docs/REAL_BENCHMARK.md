@@ -1,0 +1,5 @@
+# Real-model benchmark
+
+Use the manual GitHub Actions workflow Real model harness benchmark. It starts CPU Ollama, downloads a real Qwen coding model, records the model manifest, builds the isolated execution image, and runs fresh baseline and candidate trajectories. No API key is required. Default is a 12-episode smoke run; set tasks_per_split=30 and samples=2 for 240 episodes. CPU runs may exceed the job timeout. The first three tasks are from one family per split; use all 30 for family coverage.
+
+The optional meta-model generates source; disabling it tests a fixed reference intervention. A failed candidate or negative delta is a valid outcome. No success is guaranteed. Paired task-clustered bootstrap intervals are descriptive; task families are correlated and synthetic. The benchmark is not a weight-training experiment. The current verifier uses one case per task and is not adversarially robust. Model outputs may fail JSON parsing and abort a run; partial SQLite records are uploaded. The Ollama image is version-tagged, and the downloaded model digest is recorded, not pre-pinned. No actual user sentiment or production-scale benchmark is claimed.

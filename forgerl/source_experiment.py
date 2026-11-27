@@ -66,6 +66,7 @@ async def run(a):
                 return ev
         return await asyncio.gather(*(job(t,i) for t in subset for i in range(a.samples)))
     ts=list(tasks()); discovery=[t for t in ts if t['split']=='discovery']; heldout=[t for t in ts if t['split']=='heldout']
+    discovery=discovery[:a.tasks_per_split]; heldout=heldout[:a.tasks_per_split]
     baseline=Program(BASELINE,a.image)
     evidence=await batch('discovery_baseline',discovery,baseline)
     source=await propose(a.meta_model,evidence)
@@ -78,11 +79,14 @@ async def run(a):
     report['discovery_candidate']=mean(await batch('discovery_candidate',discovery,candidate))
     report['heldout_baseline']=mean(await batch('heldout_baseline',heldout,baseline))
     report['heldout_candidate']=mean(await batch('heldout_candidate',heldout,candidate))
+    from .benchmark_stats import paired_report
+    report['paired']=paired_report(db)
+    report['episodes']=db.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]
     x,y=report['heldout_baseline'],report['heldout_candidate']
     report['eligible_for_review']=y['correctness']>=x['correctness'] and y['intent_preservation']>=x['intent_preservation'] and y['action_selection']>=x['action_selection'] and y['tool_operations']<=x['tool_operations'] and y['execution_ms']<=1.15*x['execution_ms'] and (y['intent_preservation']>x['intent_preservation'] or y['action_selection']>x['action_selection'])
     (out/'report.json').write_text(json.dumps(report,indent=2)); db.close(); print(json.dumps(report,indent=2))
 if __name__=='__main__':
-    p=argparse.ArgumentParser(); p.add_argument('--model',required=True); p.add_argument('--meta-model'); p.add_argument('--image',default='forgerl-world:local'); p.add_argument('--samples',type=int,default=2); p.add_argument('--workers',type=int,default=4); p.add_argument('--output',default='source-experiment')
+    p=argparse.ArgumentParser(); p.add_argument('--model',required=True); p.add_argument('--meta-model'); p.add_argument('--image',default='forgerl-world:local'); p.add_argument('--tasks-per-split',type=int,default=30); p.add_argument('--samples',type=int,default=2); p.add_argument('--workers',type=int,default=4); p.add_argument('--output',default='source-experiment')
     a=p.parse_args()
-    if min(a.samples,a.workers)<1: p.error('positive samples and workers required')
+    if min(a.samples,a.workers,a.tasks_per_split)<1: p.error('positive samples and workers required')
     asyncio.run(run(a))
